@@ -1,9 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Printer, User, Calculator, ShoppingCart, FileDown, AlertCircle, Share2 } from 'lucide-react';
 
+// --- DEFINICIONES DE TIPOS (TypeScript) ---
+
+// Extendemos el objeto Window para que reconozca la librería externa html2pdf
+declare global {
+  interface Window {
+    html2pdf: any;
+  }
+}
+
+// Estructura de un Item (Fila de producto)
+interface Item {
+  id: number | string; // Puede ser número o string (UUID)
+  quantity: number;
+  unit: string;
+  description: string;
+  price: number;
+  hasIgv: boolean;
+}
+
+// Estructura de los datos del cliente
+interface ClientData {
+  name: string;
+  location: string;
+  date: string;
+  budgetNumber: string;
+  validity: string;
+  deliveryTime: string;
+  paymentCondition: string;
+}
+
 export default function App() {
   // --- Estado de Carga de Librería ---
-  const [isPdfReady, setIsPdfReady] = useState(false);
+  const [isPdfReady, setIsPdfReady] = useState<boolean>(false);
 
   // --- Carga de Librería PDF ---
   useEffect(() => {
@@ -21,16 +51,16 @@ export default function App() {
   }, []);
 
   // --- Helpers ---
-  const getLocalDate = () => {
+  const getLocalDate = (): string => {
     const d = new Date();
     const offset = d.getTimezoneOffset() * 60000;
     return new Date(d.getTime() - offset).toISOString().split('T')[0];
   };
 
-  const round2 = (num) => Math.round((num + Number.EPSILON) * 100) / 100;
+  const round2 = (num: number): number => Math.round((num + Number.EPSILON) * 100) / 100;
 
   // --- Estados ---
-  const [clientData, setClientData] = useState({
+  const [clientData, setClientData] = useState<ClientData>({
     name: '',
     location: '',
     date: getLocalDate(),
@@ -40,26 +70,28 @@ export default function App() {
     paymentCondition: '50%'
   });
 
-  const [items, setItems] = useState([
+  const [items, setItems] = useState<Item[]>([
     { id: 1, quantity: 1, unit: 'und', description: '', price: 0, hasIgv: true }
   ]);
 
   const logoUrl = 'https://i.postimg.cc/MKdW3GLk/imagen-2026-01-13-091459917.png';
-  const [logoError, setLogoError] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [statusMessage, setStatusMessage] = useState(''); // Para mostrar qué está haciendo la app
+  const [logoError, setLogoError] = useState<boolean>(false);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [statusMessage, setStatusMessage] = useState<string>(''); 
 
   // --- Lógica Items ---
   const addItem = () => {
+    // Genera un ID compatible (UUID string o timestamp number)
     const newId = window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : Date.now() + Math.random();
     setItems([...items, { id: newId, quantity: 1, unit: 'und', description: '', price: 0, hasIgv: true }]);
   };
 
-  const removeItem = (id) => {
+  const removeItem = (id: number | string) => {
     if (items.length > 1) setItems(items.filter(item => item.id !== id));
   };
 
-  const updateItem = (id, field, value) => {
+  // Función genérica para actualizar campos. "value" puede ser string, number o boolean
+  const updateItem = (id: number | string, field: keyof Item, value: string | number | boolean) => {
     setItems(items.map(item => item.id === id ? { ...item, [field]: value } : item));
   };
 
@@ -97,7 +129,7 @@ export default function App() {
         setIsGenerating(false);
         setStatusMessage('');
       })
-      .catch(err => {
+      .catch((err: any) => { // Se tipa el error como any
         console.error(err);
         setIsGenerating(false);
         setStatusMessage('');
@@ -120,11 +152,11 @@ export default function App() {
     const fileName = opt.filename;
 
     try {
-      // 1. Generar el PDF como un objeto "Blob" en memoria (no descargar aún)
+      // 1. Generar el PDF como un objeto "Blob" en memoria
       const pdfBlob = await window.html2pdf().set(opt).from(element).output('blob');
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
-      // 2. Verificar si el navegador soporta compartir archivos (Móviles principalmente)
+      // 2. Verificar si el navegador soporta compartir archivos
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         setStatusMessage('Abriendo WhatsApp...');
         await navigator.share({
@@ -133,10 +165,9 @@ export default function App() {
           text: `Hola ${clientData.name}, aquí le adjunto su presupuesto.`
         });
       } else {
-        // 3. Fallback para PC: Descargar + Abrir WhatsApp Web con texto
+        // 3. Fallback para PC
         setStatusMessage('Descargando archivo...');
         
-        // Descargar archivo
         const url = URL.createObjectURL(pdfBlob);
         const a = document.createElement('a');
         a.href = url;
@@ -144,15 +175,13 @@ export default function App() {
         a.click();
         URL.revokeObjectURL(url);
 
-        // Abrir WhatsApp Web
         setTimeout(() => {
             const text = encodeURIComponent(`Hola ${clientData.name || 'Cliente'}, le envío adjunto el presupuesto solicitado. (He descargado el PDF, por favor arrástrelo aquí).`);
             window.open(`https://wa.me/?text=${text}`, '_blank');
         }, 500);
       }
-    } catch (err) {
+    } catch (err: any) { // Se tipa el error como any
       console.error("Error al compartir:", err);
-      // Si el usuario cancela el share nativo, suele lanzar error, lo ignoramos o avisamos
       if (err.name !== 'AbortError') {
          alert("No se pudo abrir WhatsApp automáticamente. Use el botón de Descargar PDF.");
       }
@@ -350,10 +379,10 @@ export default function App() {
       <div className="flex-1 bg-gray-200 overflow-auto flex justify-center p-8">
         <div className="print-container bg-white shadow-2xl p-[40pt]" style={{ width: '210mm', minHeight: '297mm', position: 'relative' }}>
           
-          <table cellSpacing="0" cellPadding="0" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table cellSpacing={0} cellPadding={0} style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
               <tr style={{ height: '44.8pt' }}>
-                <td rowSpan="2" style={{ width: '107.05pt', verticalAlign: 'top', border: 'solid 1px #fff' }}>
+                <td rowSpan={2} style={{ width: '107.05pt', verticalAlign: 'top', border: 'solid 1px #fff' }}>
                   <div className="w-[143px] h-[159px] flex items-center justify-center bg-gray-50 border border-gray-100 overflow-hidden">
                     {logoError ? (
                        <div className="flex flex-col items-center justify-center text-gray-300 gap-1">
@@ -369,7 +398,7 @@ export default function App() {
                     )}
                   </div>
                 </td>
-                <td colSpan="2" style={{ width: '324.7pt', verticalAlign: 'top', border: 'solid 1px #fff', paddingLeft: '15pt' }}>
+                <td colSpan={2} style={{ width: '324.7pt', verticalAlign: 'top', border: 'solid 1px #fff', paddingLeft: '15pt' }}>
                   <p style={{ marginTop: '0pt', marginBottom: '0pt', fontSize: '26pt', lineHeight: '1' }}>
                     <strong><span style={{ fontFamily: 'Tahoma', color: '#c00000' }}>DECORACIONES</span></strong>
                     <strong><span style={{ fontFamily: 'Tahoma', letterSpacing: '1.3pt', color: '#c00000', marginLeft: '5pt' }}>CRUZ</span></strong>
@@ -377,7 +406,7 @@ export default function App() {
                 </td>
               </tr>
               <tr style={{ height: '44.75pt' }}>
-                <td colSpan="2" style={{ width: '324.7pt', verticalAlign: 'top', border: 'solid 1px #fff', paddingLeft: '15pt' }}>
+                <td colSpan={2} style={{ width: '324.7pt', verticalAlign: 'top', border: 'solid 1px #fff', paddingLeft: '15pt' }}>
                   <ul style={{ margin: '0pt', paddingLeft: '15pt', listStyleType: 'disc' }}>
                     {['Alfombras de rol', 'Alfombra modular', 'Piso laminado', 'Cortinas verticales'].map((serv, i) => (
                       <li key={i} style={{ fontFamily: 'serif', fontSize: '11pt', marginBottom: '2px' }}>
@@ -389,7 +418,7 @@ export default function App() {
                 </td>
               </tr>
               <tr>
-                <td colSpan="2" style={{ verticalAlign: 'top', border: 'solid 1px #fff', paddingTop: '10pt' }}>
+                <td colSpan={2} style={{ verticalAlign: 'top', border: 'solid 1px #fff', paddingTop: '10pt' }}>
                   <p style={{ marginTop: '0pt', marginBottom: '0pt', fontSize: '11pt' }}>
                     <strong>LOCAL:</strong> FRANCISCO MASIAS 2692- LINCE
                   </p>
@@ -405,7 +434,7 @@ export default function App() {
 
           <p style={{ marginTop: '0pt', marginBottom: '8pt' }}>&nbsp;</p>
 
-          <table cellSpacing="0" cellPadding="0" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table cellSpacing={0} cellPadding={0} style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
               <tr>
                 <td style={{ width: '109.45pt', border: '1px solid rgb(0, 0, 0)', verticalAlign: 'middle', padding: '4pt' }}>
@@ -429,7 +458,7 @@ export default function App() {
 
           <p style={{ marginTop: '0pt', marginBottom: '15pt' }}>&nbsp;</p>
 
-          <table cellSpacing="0" cellPadding="0" style={{ border: '0.75pt solid rgb(0, 0, 0)', borderCollapse: 'collapse', width: '100%' }}>
+          <table cellSpacing={0} cellPadding={0} style={{ border: '0.75pt solid rgb(0, 0, 0)', borderCollapse: 'collapse', width: '100%' }}>
             <tbody>
               <tr>
                 <td style={{ verticalAlign: 'top', border: '1px solid rgb(0, 0, 0)', padding: '5pt', backgroundColor: '#f0f0f0' }}>
@@ -487,7 +516,7 @@ export default function App() {
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan="4" style={{ border: '1px solid black', padding: '5px', textAlign: 'right', fontWeight: 'bold' }}>
+                <td colSpan={4} style={{ border: '1px solid black', padding: '5px', textAlign: 'right', fontWeight: 'bold' }}>
                   SUBTOTAL
                 </td>
                 <td style={{ border: '1px solid black', padding: '5px', textAlign: 'right', fontWeight: 'bold' }}>
@@ -496,12 +525,12 @@ export default function App() {
               </tr>
               {finalIgv > 0 && (
                 <tr>
-                  <td colSpan="4" style={{ border: '1px solid black', padding: '5px', textAlign: 'right', fontWeight: 'bold' }}>IGV (18%)</td>
+                  <td colSpan={4} style={{ border: '1px solid black', padding: '5px', textAlign: 'right', fontWeight: 'bold' }}>IGV (18%)</td>
                   <td style={{ border: '1px solid black', padding: '5px', textAlign: 'right', fontWeight: 'bold' }}>S/. {finalIgv.toFixed(2)}</td>
                 </tr>
               )}
               <tr>
-                <td colSpan="4" style={{ border: '1px solid black', padding: '5px', textAlign: 'right', fontWeight: 'bold' }}>TOTAL</td>
+                <td colSpan={4} style={{ border: '1px solid black', padding: '5px', textAlign: 'right', fontWeight: 'bold' }}>TOTAL</td>
                 <td style={{ border: '1px solid black', padding: '5px', textAlign: 'right', fontWeight: 'bold' }}>S/. {total.toFixed(2)}</td>
               </tr>
             </tfoot>
@@ -509,7 +538,7 @@ export default function App() {
 
           <p style={{ marginTop: '0pt', marginBottom: '50pt' }}>&nbsp;</p>
 
-          <table cellSpacing="0" cellPadding="0" style={{ width: '100%', borderCollapse: 'collapse', marginTop: 'auto' }}>
+          <table cellSpacing={0} cellPadding={0} style={{ width: '100%', borderCollapse: 'collapse', marginTop: 'auto' }}>
             <tbody>
               <tr style={{ height: '30.2pt' }}>
                 <td style={{ width: '35%', verticalAlign: 'bottom', textAlign: 'center' }}>
